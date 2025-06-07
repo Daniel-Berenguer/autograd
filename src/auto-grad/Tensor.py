@@ -40,7 +40,11 @@ class Tensor:
 
     
     def __add__(self, other):
-        other = other if isinstance(other, Tensor) else Tensor(other)
+        if isinstance(other, Tensor):
+            other = other
+        else:
+            other = Tensor(np.full_like(self.data, other, dtype=np.float32))
+
         out = Tensor(self.data + other.data, _children={self, other})
 
         def _backward():
@@ -57,6 +61,51 @@ class Tensor:
         def _backward():
             self.grad += out.grad @ other.data.T
             other.grad += self.data.T @ out.grad
+        out._backward = _backward
+
+        return out
+    
+    def __log__(self):
+        out = Tensor(np.log(self.data), _children={self})
+
+        def _backward():
+            self.grad += (1 / self.data) * out.grad
+        out._backward = _backward
+
+        return out
+    
+    def __mul__(self, other):
+        if isinstance(other, Tensor):
+            other = other
+        else:
+            other = Tensor(np.full_like(self.data, other, dtype=np.float32))
+
+        out = Tensor(self.data * other.data, _children={self, other})
+
+        def _backward():
+            self.grad += out.grad * other.data
+            other.grad += out.grad * self.data
+        out._backward = _backward
+
+        return out
+    
+    def __sum__(self, axis=0):
+        out = Tensor(np.sum(self.data, axis=axis), _children={self})
+
+        def _backward():
+            self.grad = np.tile(out.grad, self.data.shape)
+            
+        out._backward = _backward
+
+        return out
+
+
+    
+    def relu(self):
+        out = Tensor(np.maximum(0, self.data), _children={self})
+
+        def _backward():
+            self.grad += (out.data > 0) * out.grad
         out._backward = _backward
 
         return out
