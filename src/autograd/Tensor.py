@@ -130,29 +130,30 @@ class Tensor:
     def __truediv__(self, other):
         if isinstance(other, Tensor):
             other_data = other.data
+            self_data = self.data
             if (self.data.shape != other.data.shape):
                 if (self.data.shape[0] == other.data.shape[0] and other.data.shape[1] == 1):
                     other.data = np.tile(other.data, (1, self.data.shape[1]))
                 elif (self.data.shape[1] == other.data.shape[1] and other.data.shape[0] == 1):
                     other_data = np.tile(other.data, (self.data.shape[0], 1))
+                elif (self.data.shape[0] == other.data.shape[0] and self.data.shape[1] == 1):
+                    self_data = np.tile(self.data, (1, other.data.shape[1]))
                 else:
                     raise ValueError("Shapes of tensors do not match for multiplication.")
         else:
             other = Tensor(np.full_like(self.data, other, dtype=np.float32))
             other_data = other.data
+            self_data = self.data
 
-        out = Tensor(self.data / other_data, _children={self, other})
+        out = Tensor(self_data / other_data, _children={self, other})
 
         def _backward():
-            self.grad += out.grad * (1/other_data)
-            other_grad = out.grad * (-self.data/ (other.data ** 2))
-            if (other.grad.shape != self.grad.shape):
-                if (other.grad.shape[0] == self.grad.shape[0] and self.grad.shape[1] == 1):
-                    other.grad += other_grad.sum(axis=1)
-                elif (other.grad.shape[1] == self.grad.shape[1] and other.grad.shape[0] == 1):
-                    other.grad += other_grad.sum(axis=0)
+            if (other.grad.shape != self.grad.shape and other.grad.shape[0] == self.grad.shape[0] and (self.grad.ndim == 1 or self.grad.shape[1] == 1)):
+                self.grad += (out.grad * (1/other_data)).sum(axis=1)
             else:
-                other.grad += other_grad        
+                self.grad += out.grad * (1/other_data)
+
+            other.grad += out.grad * (-self.data/ (other.data ** 2))     
         out._backward = _backward
 
         return out
@@ -199,5 +200,5 @@ class Tensor:
     def softmax(self):
         sExp = self.exp()
         s = sExp.sum(axis=1)
-        out = s / sExp
+        out = sExp / s
         return out

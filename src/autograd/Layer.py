@@ -34,7 +34,7 @@ class MLP:
         for i in range(1, nLayers-1):
             self.layers.append(LinearLayer(nhidden[i-1], nhidden[i]))
 
-        self.layers.append(LinearLayer(nhidden[-1], nout))
+        self.layers.append(LinearLayer(nhidden[-1], nout, "softmax"))  # Last layer with softmax activation
 
         # Collect all parameters from the layers
         self.params = []
