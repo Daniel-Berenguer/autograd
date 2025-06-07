@@ -1,0 +1,1 @@
+A toy implementation of an automatic differentiation library and some applications on simple neural networks. Inspired by Andrej Karpathy's video series. (Project for learning purposes)
