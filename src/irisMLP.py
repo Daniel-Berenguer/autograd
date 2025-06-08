@@ -17,7 +17,6 @@ with open(pickle_path + "X_test.pkl", "rb") as f:
 with open(pickle_path + "Y_test.pkl", "rb") as f:
     Y_test = pickle.load(f)
 
-
 def categorical_cross_entropy(pred, target):
     return -(((target * (pred + 1e-9).log()).sum(axis=1)).mean(axis=0))
 
