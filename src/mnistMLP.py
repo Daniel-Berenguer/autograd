@@ -16,8 +16,8 @@ Y_test = test_data[:, 0].astype(np.int32)
 X_test = test_data[:, 1:].astype(np.float32) / 255.0  # Normalize pixel values
 
 # Convert labels to one-hot encoding
-Y_train = np.eye(int(Y_train.max() + 1))[Y_train]
-Y_test = np.eye(int(Y_test.max() + 1))[Y_test]
+Y_train = np.eye(int(Y_train.max() + 1))[Y_train].astype(np.float32)
+Y_test = np.eye(int(Y_test.max() + 1))[Y_test].astype(np.float32)
 
 
 print("Training data shape:", X_train.shape, Y_train.shape)
@@ -35,10 +35,10 @@ nn = MLP(nin, C, nLayers=4, nhidden=[256, 128, 64])
 N = X_train.shape[0]
 MINIBATCH_SIZE = 32
 LR = 0.01
-EPOCHS = 2
+EPOCHS = 10
 ITERATIONS = (N // MINIBATCH_SIZE) * EPOCHS
 
-for i in range(2):
+for i in range(ITERATIONS+1):
     # build minibatch
     ix = np.random.randint(0, N, MINIBATCH_SIZE)
     X_batch = Tensor(X_train[ix])
@@ -49,10 +49,9 @@ for i in range(2):
 
     # forward pass
     out = nn.forward(X_batch)
-    print(out)
     loss = categorical_cross_entropy(out, Y_batch)
-    if (i % 10 == 0):
-        print(f"Batch nº{i+1}. Loss:", loss.data)
+    if (i % (N // MINIBATCH_SIZE) == 0):
+        print(f"Epoch nº{i // (N // MINIBATCH_SIZE)}. Loss:", loss.data)
     # backward pass
     nn.zero_grad()
     loss.backward()
