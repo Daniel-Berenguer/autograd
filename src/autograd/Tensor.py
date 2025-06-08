@@ -5,6 +5,7 @@ class Tensor:
 
     def __init__(self, data, _children=[]):
         self.data = data if isinstance(data, np.ndarray) else np.array(data, dtype=np.float32)
+
         self.grad = np.zeros_like(self.data, dtype=np.float32)
 
         if self.data.ndim == 0:
@@ -94,6 +95,7 @@ class Tensor:
 
         def _backward():
             self.grad += out.data * out.grad
+
         out._backward = _backward
 
         return out
@@ -130,44 +132,51 @@ class Tensor:
     def __truediv__(self, other):
         if isinstance(other, Tensor):
             other_data = other.data
-            self_data = self.data
             if (self.data.shape != other.data.shape):
                 if (self.data.shape[0] == other.data.shape[0] and other.data.shape[1] == 1):
-                    other.data = np.tile(other.data, (1, self.data.shape[1]))
+                    other_data = np.tile(other.data, (1, self.data.shape[1]))
                 elif (self.data.shape[1] == other.data.shape[1] and other.data.shape[0] == 1):
                     other_data = np.tile(other.data, (self.data.shape[0], 1))
-                elif (self.data.shape[0] == other.data.shape[0] and self.data.shape[1] == 1):
-                    self_data = np.tile(self.data, (1, other.data.shape[1]))
                 else:
                     raise ValueError("Shapes of tensors do not match for multiplication.")
         else:
             other = Tensor(np.full_like(self.data, other, dtype=np.float32))
             other_data = other.data
-            self_data = self.data
 
-        out = Tensor(self_data / other_data, _children={self, other})
+        out = Tensor(self.data / other_data, _children={self, other})
 
         def _backward():
-            if (other.grad.shape != self.grad.shape and other.grad.shape[0] == self.grad.shape[0] and (self.grad.ndim == 1 or self.grad.shape[1] == 1)):
-                self.grad += (out.grad * (1/other_data)).sum(axis=1)
+            self.grad += out.grad * (1/other_data)
+            if (other.grad.shape != self.grad.shape):
+                if (other.grad.shape[0] == self.grad.shape[0] and (other.grad.ndim == 1 or other.grad.shape[1] == 1)):
+                    other.grad = other.grad + (out.grad * (-self.data/ (other_data ** 2))).sum(axis=1, keepdims=True) 
+                else:
+                    other.grad = other.grad + (out.grad * (-self.data/ (other_data ** 2))).sum(axis=0, keepdims=True)
             else:
-                self.grad += out.grad * (1/other_data)
-
-            other.grad += out.grad * (-self.data/ (other.data ** 2))     
+                other.grad += out.grad * (-self.data/ (other.data ** 2))    
         out._backward = _backward
 
         return out
     
     def sum(self, axis=0):
-        out = Tensor(np.sum(self.data, axis=axis), _children={self})
         if (axis == 1):
-            out.data = out.data.reshape(-1, 1)
+            out = Tensor(np.sum(self.data, axis=axis, keepdims=True), _children={self})
+        else:
+            out = Tensor(np.sum(self.data, axis=axis, keepdims=True), _children={self})
 
-        def _backward():
+
+        if axis == 0:
+            def _backward():
+                self.grad = self.grad + np.repeat(out.grad, self.data.shape[0], axis=0)
+        else:
+            def _backward():
+                self.grad = self.grad + np.repeat(out.grad, self.data.shape[1], axis=1)
+            """"
             if (axis == 0):
                 self.grad = np.tile(out.grad, (self.data.shape[0], 1))
             else:
-                self.grad = np.tile(out.grad, (1, self.data.shape[1]))
+                self.grad = np.tile(out.grad, (1, self.data.shape[1]))"""
+            
             
         out._backward = _backward
 
