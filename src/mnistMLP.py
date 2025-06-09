@@ -30,12 +30,12 @@ C = 10  # Number of classes, assuming labels are 0-indexed
 
 print(nin, C)
 
-nn = MLP(nin, C, nLayers=4, nhidden=[256, 128, 64])
+nn = MLP(nin, C, nLayers=5, nhidden=[64, 64, 32, 32])
 
 N = X_train.shape[0]
 MINIBATCH_SIZE = 32
-LR = 0.01
-EPOCHS = 10
+LR = 0.15
+EPOCHS = 15
 ITERATIONS = (N // MINIBATCH_SIZE) * EPOCHS
 
 for i in range(ITERATIONS+1):
@@ -43,14 +43,14 @@ for i in range(ITERATIONS+1):
     ix = np.random.randint(0, N, MINIBATCH_SIZE)
     X_batch = Tensor(X_train[ix])
     Y_batch = Tensor(Y_train[ix])
-    if (i > ITERATIONS // 2):
-        # Reduce learning rate after half of the iterations
-        LR = 0.001
+    if (i == round(ITERATIONS*0.7)):
+        # Reduce learning rate after some iterations
+        LR *= 0.1
 
     # forward pass
     out = nn.forward(X_batch)
     loss = categorical_cross_entropy(out, Y_batch)
-    if (i % (N // MINIBATCH_SIZE) == 0):
+    if (i % 100 == 0):
         print(f"Epoch nº{i // (N // MINIBATCH_SIZE)}. Loss:", loss.data)
     # backward pass
     nn.zero_grad()

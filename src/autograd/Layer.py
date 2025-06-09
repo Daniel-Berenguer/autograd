@@ -5,7 +5,7 @@ class LinearLayer:
     def __init__(self, nin, nout, act="relu"):
         self.nin = nin
         self.nout = nout
-        self.W = Tensor((np.random.rand(nin, nout).astype(np.float32) - 0.5) * np.sqrt(2.0 / nin))  # He initialization
+        self.W = Tensor((np.random.rand(nin, nout).astype(np.float32) - 0.5) * np.sqrt(2.0 / nin))  # Kaiming init
         self.bias = Tensor(np.zeros((1, nout), dtype=np.float32))  # Bias initialized to zero
         self.params = [self.W, self.bias]
         self.act = act
