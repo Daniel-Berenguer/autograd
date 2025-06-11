@@ -2,16 +2,49 @@ from .Tensor import Tensor
 import numpy as np
 
 class LinearLayer:
-    def __init__(self, nin, nout, act="relu"):
+    def __init__(self, nin, nout, act="relu", batchNorm=True):
         self.nin = nin
         self.nout = nout
-        self.W = Tensor((np.random.rand(nin, nout).astype(np.float32) - 0.5) * np.sqrt(2.0 / nin))  # Kaiming init
+        self.W = Tensor((np.random.rand(nin, nout).astype(np.float32) - 0.5) * np.sqrt(2.0 / nin))  # Kaiming He init
+        self.batchNorm = batchNorm
         self.bias = Tensor(np.zeros((1, nout), dtype=np.float32))  # Bias initialized to zero
-        self.params = [self.W, self.bias]
+
+        if batchNorm:      
+            self.gain = Tensor(np.ones((1, nout), dtype=np.float32))
+
+            # Initialized running mean and std as numpy arrays as no grads are required
+            self.runningMean = np.zeros((1, nout), dtype=np.float32)
+            self.runningStd = np.ones((1, nout), dtype=np.float32)
+
+            self.params = [self.W, self.bias, self.gain]
+
+        else:
+            self.params = [self.W, self.bias]
+
+        
+
         self.act = act
 
-    def forward(self, X):
-        out = X @ self.W + self.bias
+    def forward(self, X, training=True):
+        out = X @ self.W
+
+        if (not self.batchNorm):
+            out = out + self.bias
+        
+        else:
+            if training:
+                batchMean = out.mean(axis=0)
+                batchStd = out.std(axis=0, mean=batchMean)
+                out = (out - batchMean) / (batchStd + 1e-5) * self.gain + self.bias
+
+                # Update running mean and std
+                self.runningMean = 0.99 * self.runningMean + 0.01 * batchMean.data
+                self.runningStd = 0.99 * self.runningStd + 0.01 * batchStd.data
+
+            else:
+                # Use running mean and std for inference
+                out = (out - self.runningMean) / (self.runningStd + 1e-5) * self.gain + self.bias
+
         
         if self.act == "relu":
             out = out.relu()
@@ -25,15 +58,15 @@ class LinearLayer:
     
 
 class MLP:
-    def __init__(self, nin, nout, nLayers=3, nhidden=[64, 64]):
+    def __init__(self, nin, nout, nLayers=3, nhidden=[64, 64], batchNorm=True):
         self.layers = [
-            LinearLayer(nin, nhidden[0])
+            LinearLayer(nin, nhidden[0], "relu", batchNorm)  # First layer with ReLU activation
         ]
 
         for i in range(1, nLayers-1):
-            self.layers.append(LinearLayer(nhidden[i-1], nhidden[i]))
+            self.layers.append(LinearLayer(nhidden[i-1], nhidden[i], "relu", batchNorm))
 
-        self.layers.append(LinearLayer(nhidden[-1], nout, "softmax"))  # Last layer with softmax activation
+        self.layers.append(LinearLayer(nhidden[-1], nout, "softmax", batchNorm=False))  # Last layer with softmax activation
 
         # Collect all parameters from the layers
         self.params = []

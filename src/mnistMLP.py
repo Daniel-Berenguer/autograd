@@ -30,12 +30,12 @@ C = 10  # Number of classes, assuming labels are 0-indexed
 
 print(nin, C)
 
-nn = MLP(nin, C, nLayers=5, nhidden=[64, 64, 32, 32])
+nn = MLP(nin, C, nLayers=5, nhidden=[64, 64, 32, 32], batchNorm=True)
 
 N = X_train.shape[0]
 MINIBATCH_SIZE = 32
 LR = 0.15
-EPOCHS = 15
+EPOCHS = 10
 ITERATIONS = (N // MINIBATCH_SIZE) * EPOCHS
 
 for i in range(ITERATIONS+1):

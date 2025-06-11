@@ -70,6 +70,36 @@ class Tensor:
 
         return out
     
+    def __sub__(self, other):
+        if isinstance(other, Tensor):
+            other_data = other.data
+            if (self.data.shape != other.data.shape):
+                if (self.data.shape[0] == other.data.shape[0] and other.data.shape[1] == 1):
+                    other.data = np.tile(other.data, (1, self.data.shape[1]))
+                elif (self.data.shape[1] == other.data.shape[1] and other.data.shape[0] == 1):
+                    other_data = np.tile(other.data, (self.data.shape[0], 1))
+                else:
+                    raise ValueError("Shapes of tensors do not match for substraction.")
+        else:
+            other = Tensor(np.full_like(self.data, other, dtype=np.float32))
+            other_data = other.data
+
+        out = Tensor(self.data - other_data, _children={self, other})
+
+
+        def _backward():
+            self.grad += out.grad
+            if (other.grad.shape != self.grad.shape):
+                if (other.grad.shape[0] == self.grad.shape[0] and self.grad.shape[1] == 1):
+                    other.grad -= out.grad.sum(axis=1)
+                elif (other.grad.shape[1] == self.grad.shape[1] and other.grad.shape[0] == 1):
+                    other.grad -= out.grad.sum(axis=0)
+            else:
+                other.grad -= out.grad
+        out._backward = _backward
+
+        return out
+    
     def __matmul__(self, other):
         other = other if isinstance(other, Tensor) else Tensor(other)
         out = Tensor(self.data @ other.data, _children={self, other})
@@ -86,6 +116,16 @@ class Tensor:
 
         def _backward():
             self.grad += (1 / self.data) * out.grad
+        out._backward = _backward
+
+        return out
+    
+    def __pow__(self, exp):
+        out = Tensor(self.data ** exp, _children={self})
+
+        def _backward():
+            self.grad += (exp * (self.data ** (exp - 1))) * out.grad
+        
         out._backward = _backward
 
         return out
@@ -193,7 +233,11 @@ class Tensor:
     def mean(self, axis=0):
         out = self.sum(axis=axis) / self.data.shape[axis]
         return out
-
+    
+    def std(self, axis=0, mean=0):
+        transf = (self - mean) ** 2
+        out = transf.mean(axis=axis) ** 0.5
+        return out
     
     def relu(self):
         out = Tensor(np.maximum(0, self.data), _children={self})
