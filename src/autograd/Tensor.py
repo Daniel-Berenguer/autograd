@@ -169,6 +169,58 @@ class Tensor:
 
         return out
     
+
+    def convolution(self, filtersT, padding=0):
+
+
+        # Filters shape is (nFilters, channelsIn, kernel_height, kernel_width)
+        # Data shape is (batch_size, channelsIn, height_in, width_in)
+        # Out data is (batch_size, nFilters, height_out, width_out)
+
+        filters = filtersT.data
+
+        padded_data = np.pad(self.data, ((0, 0), (0, 0), (padding, padding), (padding, padding)), mode='constant', constant_values=0)
+
+
+        height_out = padded_data.shape[2] - filters.shape[2] + 1
+        width_out = padded_data.shape[3] - filters.shape[3] + 1
+        
+        out_data = np.zeros((padded_data.shape[0], filters.shape[0], height_out, width_out), dtype=np.float32)
+
+        for i in range(height_out):
+            for j in range(width_out):
+
+                # slice shape is (batch_size, channelsIn, kernel_height, kernel_width)
+                # filters shape is (nFilters, channelsIn, kernel_height, kernel_width)
+                # out_data shape is (batch_size, nFilters, height_out, width_out)
+
+                slice = padded_data[:, :, i: i + filters.shape[2], j:j + filters.shape[3]]
+                out_data[:, :, i, j] = (slice[:, np.newaxis, :, :, :] * filters[np.newaxis, :, :, :, :]).sum(axis=(2, 3, 4)) # sum over channelsIn, kernel_height, kernel_width
+
+        out = Tensor(out_data, _children={self, filtersT})
+
+        def _backward():
+            # Gradient for the input and filters
+            for i in range(height_out):
+                for j in range(width_out):
+                    slice = padded_data[:, :, i: i + filters.shape[2], j:j + filters.shape[3]]
+
+                    padded_grad = np.pad(self.grad, ((0, 0), (0, 0), (padding, padding), (padding, padding)), mode='constant', constant_values=0)
+                    
+                    new_self_grad = (out.grad[:, :, i, j, np.newaxis, np.newaxis, np.newaxis] * filters[np.newaxis, :, :, :, :]).sum(axis=1)  # sum over nFilters
+                    
+                    padded_grad[:, :, i : i + filters.shape[2], j : j + filters.shape[3]] += new_self_grad
+                    self.grad = padded_grad[:, :, padding: -padding, padding: -padding]  # Remove padding
+                    
+                    filtersT.grad += (out.grad[:, :, i, j, np.newaxis, np.newaxis, np.newaxis] 
+                                      * slice[:, np.newaxis, :, :, :]).sum(axis=0)  # sum over batch_size
+
+        out._backward = _backward
+        return out
+
+
+        
+    
     def __truediv__(self, other):
         if isinstance(other, Tensor):
             other_data = other.data

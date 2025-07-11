@@ -1,7 +1,19 @@
 from .Tensor import Tensor
 import numpy as np
 
-class LinearLayer:
+
+class Layer:
+    def __init__(self):
+        self.params = []  # List to hold parameters of the layer
+
+    def zero_grad(self):
+        for param in self.params:
+            param.grad = np.zeros_like(param.data, dtype=np.float32)
+
+class LinearLayer(Layer):
+    """
+    A linear layer with optional batch normalization and activation function.
+    """
     def __init__(self, nin, nout, act="relu", batchNorm=True):
         self.nin = nin
         self.nout = nout
@@ -52,10 +64,27 @@ class LinearLayer:
             out = out.softmax()
         return out
     
-    def zero_grad(self):
-        for param in self.params:
-            param.grad = np.zeros_like(param.data, dtype=np.float32)
-    
+class ConvLayer(Layer):
+    def __init__(self, channelsIn=1, kernel_height=3, kernel_width=3, padding=1, nFilters=8, act="relu"):
+        self.padding = padding
+        self.nFilters = nFilters
+        self.filtersShape = (nFilters, channelsIn, kernel_height, kernel_width)
+        self.filters = Tensor((np.random.rand(*self.filtersShape).astype(np.float32) 
+                               - 0.5) * np.sqrt(2.0 / (kernel_height * kernel_width * channelsIn))) # Kaiming He init
+        self.act = act
+
+
+    def forward(self, X, training=True):
+        # Assuming X is a 4D tensor with shape (batch_size, channelsIn, height_in, width_in)
+        out = X.convolution(self.filters, padding=self.padding)
+
+        if self.act == "relu":
+            out = out.relu()
+        elif self.act == "softmax":
+            out = out.softmax()
+
+        return out
+
 
 class MLP:
     def __init__(self, nin, nout, nLayers=3, nhidden=[64, 64], batchNorm=True):
@@ -81,3 +110,6 @@ class MLP:
     def zero_grad(self):
         for layer in self.layers:
             layer.zero_grad()
+
+
+    
