@@ -199,6 +199,7 @@ class Tensor:
 
         out = Tensor(out_data, _children={self, filtersT})
 
+
         def _backward():
             # Gradient for the input and filters
             for i in range(height_out):
@@ -218,6 +219,42 @@ class Tensor:
         out._backward = _backward
         return out
 
+
+    def pool(self, kernel_size, stride):
+        # Data shape is (batch_size, channelsIn, height_in, width_in)
+        # Out data shape is (batch_size, channelsIn, height_out, width_out)
+
+        out_data = np.zeros( (self.data.shape[0], self.data.shape[1], 
+                        (self.data.shape[2]) // stride 
+                        (self.data.shape[3]) // stride), dtype=np.float32)
+
+        i = 0
+        while (i * stride + kernel_size[0] < self.data.shape[2]):
+            j = 0
+            while (j * stride + kernel_size[1] < self.data.shape[3]):
+                slice = self.data[:, :, i * stride: i * stride + kernel_size[0], j * stride: j * stride + kernel_size[1]]
+                out_data[:, :, i, j] = slice.max(axis=(2, 3))  # max over height and width
+                j += 1
+            i += 1
+
+        out = Tensor(out_data, _children={self})
+
+        def _backward():
+            # Gradient for the input
+            
+            i = 0
+            while (i * stride + kernel_size[0] < self.data.shape[2]):
+                j = 0
+                while (j * stride + kernel_size[1] < self.data.shape[3]):
+                    slice = self.data[:, :, i * stride: i * stride + kernel_size[0], j * stride: j * stride + kernel_size[1]]
+                    max_mask = (slice == slice.max(axis=(2, 3), keepdims=True))
+                    grad_slice = out.grad[:, :, i, j][:, :, np.newaxis, np.newaxis]
+                    self.grad[:, :, i * stride: i * stride + kernel_size[0], j * stride: j * stride + kernel_size[1]] += max_mask * grad_slice
+                    j += 1
+                i += 1
+
+        out._backward = _backward
+        return out
 
         
     
