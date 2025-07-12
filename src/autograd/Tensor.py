@@ -220,19 +220,18 @@ class Tensor:
         return out
 
 
-    def pool(self, kernel_size, stride):
+    def maxPool(self, kernel_shape, stride):
         # Data shape is (batch_size, channelsIn, height_in, width_in)
         # Out data shape is (batch_size, channelsIn, height_out, width_out)
 
-        out_data = np.zeros( (self.data.shape[0], self.data.shape[1], 
-                        (self.data.shape[2]) // stride 
-                        (self.data.shape[3]) // stride), dtype=np.float32)
+        out_data = np.zeros( (self.data.shape[0], self.data.shape[1],
+                               self.data.shape[2] // stride,self.data.shape[3] // stride), dtype=np.float32)
 
         i = 0
-        while (i * stride + kernel_size[0] < self.data.shape[2]):
+        while (i * stride + kernel_shape[0] < self.data.shape[2]):
             j = 0
-            while (j * stride + kernel_size[1] < self.data.shape[3]):
-                slice = self.data[:, :, i * stride: i * stride + kernel_size[0], j * stride: j * stride + kernel_size[1]]
+            while (j * stride + kernel_shape[1] < self.data.shape[3]):
+                slice = self.data[:, :, i * stride: i * stride + kernel_shape[0], j * stride: j * stride + kernel_shape[1]]
                 out_data[:, :, i, j] = slice.max(axis=(2, 3))  # max over height and width
                 j += 1
             i += 1
@@ -243,19 +242,31 @@ class Tensor:
             # Gradient for the input
             
             i = 0
-            while (i * stride + kernel_size[0] < self.data.shape[2]):
+            while (i * stride + kernel_shape[0] < self.data.shape[2]):
                 j = 0
-                while (j * stride + kernel_size[1] < self.data.shape[3]):
-                    slice = self.data[:, :, i * stride: i * stride + kernel_size[0], j * stride: j * stride + kernel_size[1]]
+                while (j * stride + kernel_shape[1] < self.data.shape[3]):
+                    slice = self.data[:, :, i * stride: i * stride + kernel_shape[0], j * stride: j * stride + kernel_shape[1]]
                     max_mask = (slice == slice.max(axis=(2, 3), keepdims=True))
                     grad_slice = out.grad[:, :, i, j][:, :, np.newaxis, np.newaxis]
-                    self.grad[:, :, i * stride: i * stride + kernel_size[0], j * stride: j * stride + kernel_size[1]] += max_mask * grad_slice
+                    self.grad[:, :, i * stride: i * stride + kernel_shape[0], j * stride: j * stride + kernel_shape[1]] += max_mask * grad_slice
                     j += 1
                 i += 1
 
         out._backward = _backward
         return out
 
+
+    def flatten(self):
+        # Flatten the tensor to 2D (batch_size, -1)
+        out_data = self.data.reshape(self.data.shape[0], -1)
+        out = Tensor(out_data, _children={self})
+
+        def _backward():
+            # Reshape the gradient back to the original shape
+            self.grad = out.grad.reshape(self.grad.shape)
+
+        out._backward = _backward
+        return out
         
     
     def __truediv__(self, other):

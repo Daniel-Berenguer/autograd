@@ -65,16 +65,18 @@ class LinearLayer(Layer):
         return out
     
 class ConvLayer(Layer):
-    def __init__(self, channelsIn=1, kernel_height=3, kernel_width=3, padding=1, nFilters=8, act="relu"):
+    def __init__(self, channelsIn=1, kernel_shape=(3,3), padding=1, nFilters=8, act="relu"):
+        kernel_height, kernel_width = kernel_shape
         self.padding = padding
         self.nFilters = nFilters
         self.filtersShape = (nFilters, channelsIn, kernel_height, kernel_width)
         self.filters = Tensor((np.random.rand(*self.filtersShape).astype(np.float32) 
                                - 0.5) * np.sqrt(2.0 / (kernel_height * kernel_width * channelsIn))) # Kaiming He init
         self.act = act
+        self.params = [self.filters]  # List to hold parameters of the layer
 
 
-    def forward(self, X, training=True):
+    def forward(self, X, training=None):
         # Assuming X is a 4D tensor with shape (batch_size, channelsIn, height_in, width_in)
         out = X.convolution(self.filters, padding=self.padding)
 
@@ -83,6 +85,22 @@ class ConvLayer(Layer):
         elif self.act == "softmax":
             out = out.softmax()
 
+        return out
+    
+class MaxPoolLayer(Layer):
+    def __init__(self, kernel_size=(2,2), stride=2):
+        super().__init__()
+        self.kernel_size = kernel_size
+        self.stride = stride
+
+    def forward(self, X, training=None):
+        # Assuming X is a 4D tensor with shape (batch_size, channels, height, width)
+        out = X.maxPool(kernel_shape=self.kernel_size, stride=self.stride)
+        return out
+
+class Flatten(Layer):
+    def forward(self, X, training=None):
+        out = X.flatten()  # Flatten the input tensor
         return out
 
 
@@ -102,7 +120,7 @@ class MLP:
         for layer in self.layers:
             self.params.extend(layer.params)
 
-    def forward(self, x):
+    def forward(self, x, training=True):
         for layer in self.layers:
             x = layer.forward(x)
         return x
@@ -111,5 +129,60 @@ class MLP:
         for layer in self.layers:
             layer.zero_grad()
 
+
+
+class Sequential:
+    def __init__(self, *layers):
+        self.layers = layers
+        self.params = []
+        for layer in layers:
+            self.params.extend(layer.params)
+
+    def forward(self, x, training=True):
+        for layer in self.layers:
+            x = layer.forward(x, training=training)
+        return x
+    
+    def zero_grad(self):
+        for layer in self.layers:
+            layer.zero_grad()
+
+
+class CNN:
+    def __init__(self, channelsIn, nOut, nConvLayers=2, nFilters=[8, 16], kernel_shapes=[(3,3), (3,3)], paddings=[1,1], act="relu",
+                  poolShapes=[(2,2), (2,2)], poolStrides=[2,2], LNin=784 , nLinLayers=2, nHidden=[128]):
+        self.layers = []
+
+        for i in range(nConvLayers):
+            if (i > 0):
+                channelsIn = nFilters[i-1]  # Update channelsIn for subsequent layers
+            self.layers.append(ConvLayer(channelsIn=channelsIn, nFilters=nFilters[i], kernel_shape=kernel_shapes[i],
+                                          padding=paddings[i], act=act))
+            self.layers.append(MaxPoolLayer(kernel_size=poolShapes[i], stride=poolStrides[i]))
+
+        # Flatten layer
+        self.layers.append(Flatten())
+
+        # Add linear layers
+        self.layers.append(LinearLayer(LNin, nHidden[0], act="relu", batchNorm=True))
+        for i in range(1, nLinLayers-1):
+            self.layers.append(LinearLayer(nHidden[i-1], nHidden[i], act="relu", batchNorm=True))
+
+        # Output layer
+        self.layers.append(LinearLayer(nHidden[-1], nOut, act="softmax", batchNorm=False))
+
+        # Collect all parameters from the layers
+        self.params = []
+        for layer in self.layers:
+            self.params.extend(layer.params)
+
+    def forward(self, x, training=True):
+        for layer in self.layers:
+            x = layer.forward(x, training=training)
+        return x
+    
+    def zero_grad(self):
+        for layer in self.layers:
+            layer.zero_grad()
 
     
